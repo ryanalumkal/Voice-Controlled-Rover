@@ -3,22 +3,10 @@
 #include <stdio.h>
 #include <stdlib.h>
 
-#define THRESHOLD 1000.0f  // Maximum DTW distance to accept a match
-#define THRESHOLD_FOR_SIM 0.5
+#define THRESHOLD 10000.0f  // Maximum DTW distance to accept a match
+#define THRESHOLD_FOR_SIM 0.4
 
 // ----------------- Preprocessing Functions -----------------
-
-// Remove DC bias by subtracting the mean from the signal.
-void remove_dc_bias(float *signal, int length) {
-  float sum = 0.0f;
-  for (int i = 0; i < length; i++) {
-    sum += signal[i];
-  }
-  float mean = sum / length;
-  for (int i = 0; i < length; i++) {
-    signal[i] -= mean;
-  }
-}
 
 // Simple moving-average filter for noise reduction.
 void moving_average_filter(float *signal, int length, int window) {
@@ -33,27 +21,6 @@ void moving_average_filter(float *signal, int length, int window) {
       }
     }
     temp[i] = sum / count;
-  }
-  for (int i = 0; i < length; i++) {
-    signal[i] = temp[i];
-  }
-  free(temp);
-}
-
-// A simple FIR bandpass filter using hard-coded 5-tap coefficients.
-// (Note: These coefficients are only for demonstration.)
-void bandpass_filter(float *signal, int length) {
-  float coeffs[5] = {-0.1f, 0.3f, 0.5f, 0.3f, -0.1f};
-  int filter_order = 5;
-  float *temp = malloc(length * sizeof(float));
-  for (int i = 0; i < length; i++) {
-    temp[i] = 0.0f;
-    for (int j = 0; j < filter_order; j++) {
-      int index = i - j;
-      if (index >= 0) {
-        temp[i] += coeffs[j] * signal[index];
-      }
-    }
   }
   for (int i = 0; i < length; i++) {
     signal[i] = temp[i];
@@ -198,16 +165,8 @@ float overall_similarity(const float *input, const float *templ, int length) {
   free(mag_input);
   free(mag_templ);
 
-  // 5. DTW similarity: lower DTW distance indicates higher similarity.
-  float dtw_dist = dtw_distance(input, length, templ, length);
-  float dtw_sim =
-      1.0f /
-      (1.0f + dtw_dist);  // Convert distance to a similarity (range 0 to 1)
-
-  // Combine the features with weights (these weights can be tuned
-  // experimentally)
   float overall = 0.3f * wave_corr + 0.15f * zcr_sim + 0.15f * ste_sim +
-                  0.15f * fft_corr + 0.25f * dtw_sim;
+                  0.15f * fft_corr;
   return overall;
 }
 
@@ -4472,20 +4431,13 @@ int main(void) {
     rightTemplate[i] = (float)rightTemplate_[i];
   }
 
-  // Preprocess each signal.
-  remove_dc_bias(inputSignal, length);
-  remove_dc_bias(leftTemplate, length);
-  remove_dc_bias(rightTemplate, length);
+  // Signal Pre-Processing
 
-  moving_average_filter(inputSignal, length, 3);
-  moving_average_filter(leftTemplate, length, 3);
-  moving_average_filter(rightTemplate, length, 3);
+  moving_average_filter(inputSignal, length, 4); // Keep, this works
+  moving_average_filter(leftTemplate, length, 4);
+  moving_average_filter(rightTemplate, length, 4);
 
-  bandpass_filter(inputSignal, length);
-  bandpass_filter(leftTemplate, length);
-  bandpass_filter(rightTemplate, length);
-
-  normalize_signal(inputSignal, length);
+  normalize_signal(inputSignal, length); // Keep
   normalize_signal(leftTemplate, length);
   normalize_signal(rightTemplate, length);
 
@@ -4493,8 +4445,8 @@ int main(void) {
   float sim_left = overall_similarity(inputSignal, leftTemplate, length);
   float sim_right = overall_similarity(inputSignal, rightTemplate, length);
 
-  printf("Overall similarity with LEFT template: %.3f\n", sim_left);
-  printf("Overall similarity with RIGHT template: %.3f\n", sim_right);
+  printf("Overall similarity with BEEP template: %.3f %% \n", sim_left*100);
+  printf("Overall similarity with TAP template: %.3f %% \n", sim_right*100);
 
   // Decide which command is recognized.
   if (sim_left < THRESHOLD_FOR_SIM && sim_right < THRESHOLD_FOR_SIM) {
@@ -4510,3 +4462,5 @@ int main(void) {
   free(rightTemplate);
   return 0;
 }
+
+
