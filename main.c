@@ -210,6 +210,7 @@ float overall_similarity(const float *input, const float *templ, int length) {
   return overall;
 }
 
+//(LEFT)
 int inputSignal_[] = {
     134656,     242688,     639488,     430848,     433152,     678400,
     1085184,    1343744,    403456,     33536,      -48640,     389376,
