@@ -4459,7 +4459,7 @@ int rightTemplate_[] = {
 //
 int main(void) {
   // Example: assume signals are of length 100.
-  int length = 12000;
+  int length = 8000;
 
   // Convert short arrays to float arrays for processing.
   float *inputSignal = malloc(length * sizeof(float));
