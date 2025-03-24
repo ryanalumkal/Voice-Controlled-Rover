@@ -4201,7 +4201,7 @@ int rightTemplate_[] = {
 };
 
 // ----------------- Main Program -----------------
-
+//
 int main(void) {
   // Example: assume signals are of length 100.
   int length = 12000;
