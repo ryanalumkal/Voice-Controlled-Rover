@@ -131,27 +131,63 @@ float compute_vector_correlation(const float *a, const float *b, int length) {
   return (float)(sum_ab / denom);
 }
 
+// Compute the DTW distance between two signals s (length n) and t (length m).
+float dtw_distance(const float *s, int n, const float *t, int m) {
+  // Allocate a (n+1) x (m+1) matrix.
+  float **dtw = malloc((n + 1) * sizeof(float *));
+  for (int i = 0; i <= n; i++) {
+    dtw[i] = malloc((m + 1) * sizeof(float));
+  }
+  // Initialize the matrix with "infinity" (using FLT_MAX).
+  for (int i = 0; i <= n; i++) {
+    for (int j = 0; j <= m; j++) {
+      dtw[i][j] = FLT_MAX;
+    }
+  }
+  dtw[0][0] = 0.0f;
+
+  // Populate the DTW matrix.
+  for (int i = 1; i <= n; i++) {
+    for (int j = 1; j <= m; j++) {
+      float cost = fabs(s[i - 1] - t[j - 1]);
+      float min_prev = dtw[i - 1][j];
+      if (dtw[i][j - 1] < min_prev) min_prev = dtw[i][j - 1];
+      if (dtw[i - 1][j - 1] < min_prev) min_prev = dtw[i - 1][j - 1];
+      dtw[i][j] = cost + min_prev;
+    }
+  }
+  float distance = dtw[n][m];
+
+  // Free the allocated matrix.
+  for (int i = 0; i <= n; i++) {
+    free(dtw[i]);
+  }
+  free(dtw);
+  return distance;
+}
+
 // ----------------- Overall Similarity Computation -----------------
 
 // Combine multiple feature similarities into an overall similarity score.
 float overall_similarity(const float *input, const float *templ, int length) {
-  // Waveform correlation
+  // 1. Waveform correlation
   float wave_corr = compute_waveform_correlation(input, templ, length);
 
-  // ZCR similarity: lower difference implies higher similarity.
+  // 2. Zero-Crossing Rate (ZCR) similarity: lower difference implies higher
+  // similarity.
   float zcr_input = compute_zcr(input, length);
   float zcr_templ = compute_zcr(templ, length);
   float zcr_diff = fabs(zcr_input - zcr_templ);  // maximum possible diff is 1.0
   float zcr_sim = 1.0f - zcr_diff;
 
-  // STE similarity: using relative difference.
+  // 3. Short Time Energy (STE) similarity: using relative difference.
   float ste_input = compute_ste(input, length);
   float ste_templ = compute_ste(templ, length);
   float ste_diff = fabs(ste_input - ste_templ) / (ste_input + 1e-9f);
   float ste_sim = 1.0f - ste_diff;
   if (ste_sim < 0) ste_sim = 0;
 
-  // FFT correlation: compare the magnitude spectra.
+  // 4. FFT correlation: compare the magnitude spectra.
   float *mag_input = malloc(length * sizeof(float));
   float *mag_templ = malloc(length * sizeof(float));
   compute_dft(input, length, mag_input);
@@ -160,9 +196,16 @@ float overall_similarity(const float *input, const float *templ, int length) {
   free(mag_input);
   free(mag_templ);
 
-  // Combine with weights (these weights can be tuned experimentally)
-  float overall =
-      0.4f * wave_corr + 0.2f * zcr_sim + 0.2f * ste_sim + 0.2f * fft_corr;
+  // 5. DTW similarity: lower DTW distance indicates higher similarity.
+  float dtw_dist = dtw_distance(input, length, templ, length);
+  float dtw_sim =
+      1.0f /
+      (1.0f + dtw_dist);  // Convert distance to a similarity (range 0 to 1)
+
+  // Combine the features with weights (these weights can be tuned
+  // experimentally)
+  float overall = 0.3f * wave_corr + 0.15f * zcr_sim + 0.15f * ste_sim +
+                  0.15f * fft_corr + 0.25f * dtw_sim;
   return overall;
 }
 
