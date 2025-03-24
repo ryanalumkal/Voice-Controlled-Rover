@@ -1,36 +1,170 @@
 #include <math.h>
 #include <stdio.h>
+#include <stdlib.h>
 
-#define THRESHOLD 0.6  // Minimum correlation required to consider a match
+#define THRESHOLD 0.7f  // Minimum overall similarity to accept a match
 
-// Function to compute normalized cross-correlation between two signals.
-// It slides the shorter signal (template) over the longer signal (input)
-// and returns the maximum correlation coefficient (range 0 to 1).
-double compute_correlation(const short *input, int input_len,
-                           const short *templ, int templ_len) {
-  if (input_len < templ_len) return 0.0;
+// ----------------- Preprocessing Functions -----------------
 
-  double best_corr = 0.0;
-  int max_shift = input_len - templ_len;
-
-  for (int shift = 0; shift <= max_shift; shift++) {
-    double sum_xy = 0.0, sum_x2 = 0.0, sum_y2 = 0.0;
-    for (int i = 0; i < templ_len; i++) {
-      double x = input[shift + i];
-      double y = templ[i];
-      sum_xy += x * y;
-      sum_x2 += x * x;
-      sum_y2 += y * y;
-    }
-    // Add a small value to the denominator to avoid division by zero.
-    double denom = sqrt(sum_x2 * sum_y2) + 1e-9;
-    double corr = sum_xy / denom;
-    if (corr > best_corr) best_corr = corr;
+// Remove DC bias by subtracting the mean from the signal.
+void remove_dc_bias(float *signal, int length) {
+  float sum = 0.0f;
+  for (int i = 0; i < length; i++) {
+    sum += signal[i];
   }
-  return best_corr;
+  float mean = sum / length;
+  for (int i = 0; i < length; i++) {
+    signal[i] -= mean;
+  }
 }
 
+// Simple moving-average filter for noise reduction.
+void moving_average_filter(float *signal, int length, int window) {
+  float *temp = malloc(length * sizeof(float));
+  for (int i = 0; i < length; i++) {
+    float sum = 0.0f;
+    int count = 0;
+    for (int j = i - window; j <= i + window; j++) {
+      if (j >= 0 && j < length) {
+        sum += signal[j];
+        count++;
+      }
+    }
+    temp[i] = sum / count;
+  }
+  for (int i = 0; i < length; i++) {
+    signal[i] = temp[i];
+  }
+  free(temp);
+}
 
+// A simple FIR bandpass filter using hard-coded 5-tap coefficients.
+// (Note: These coefficients are only for demonstration.)
+void bandpass_filter(float *signal, int length) {
+  float coeffs[5] = {-0.1f, 0.3f, 0.5f, 0.3f, -0.1f};
+  int filter_order = 5;
+  float *temp = malloc(length * sizeof(float));
+  for (int i = 0; i < length; i++) {
+    temp[i] = 0.0f;
+    for (int j = 0; j < filter_order; j++) {
+      int index = i - j;
+      if (index >= 0) {
+        temp[i] += coeffs[j] * signal[index];
+      }
+    }
+  }
+  for (int i = 0; i < length; i++) {
+    signal[i] = temp[i];
+  }
+  free(temp);
+}
+
+// Normalize the signal amplitude so the maximum absolute value is 1.
+void normalize_signal(float *signal, int length) {
+  float max_val = 0.0f;
+  for (int i = 0; i < length; i++) {
+    float abs_val = fabs(signal[i]);
+    if (abs_val > max_val) max_val = abs_val;
+  }
+  if (max_val == 0.0f) return;
+  for (int i = 0; i < length; i++) {
+    signal[i] /= max_val;
+  }
+}
+
+// ----------------- Feature Extraction Functions -----------------
+
+// 1. Waveform correlation (normalized cross-correlation)
+float compute_waveform_correlation(const float *x, const float *y, int length) {
+  double sum_xy = 0.0, sum_x2 = 0.0, sum_y2 = 0.0;
+  for (int i = 0; i < length; i++) {
+    sum_xy += x[i] * y[i];
+    sum_x2 += x[i] * x[i];
+    sum_y2 += y[i] * y[i];
+  }
+  double denom = sqrt(sum_x2 * sum_y2) + 1e-9;
+  return (float)(sum_xy / denom);
+}
+
+// 2. Zero-Crossing Rate (ZCR)
+float compute_zcr(const float *signal, int length) {
+  int count = 0;
+  for (int i = 1; i < length; i++) {
+    if ((signal[i - 1] >= 0 && signal[i] < 0) ||
+        (signal[i - 1] < 0 && signal[i] >= 0))
+      count++;
+  }
+  return (float)count / (length - 1);
+}
+
+// 3. Short Time Energy (STE)
+float compute_ste(const float *signal, int length) {
+  double sum = 0.0;
+  for (int i = 0; i < length; i++) {
+    sum += signal[i] * signal[i];
+  }
+  return (float)(sum / length);
+}
+
+// 4. Compute DFT magnitude spectrum (naive DFT implementation)
+void compute_dft(const float *signal, int length, float *magnitude) {
+  for (int k = 0; k < length; k++) {
+    double real = 0.0, imag = 0.0;
+    for (int n = 0; n < length; n++) {
+      double angle = 2 * M_PI * k * n / length;
+      real += signal[n] * cos(angle);
+      imag -= signal[n] * sin(angle);
+    }
+    magnitude[k] = (float)sqrt(real * real + imag * imag);
+  }
+}
+
+// Compute vector correlation between two vectors.
+float compute_vector_correlation(const float *a, const float *b, int length) {
+  double sum_ab = 0.0, sum_a2 = 0.0, sum_b2 = 0.0;
+  for (int i = 0; i < length; i++) {
+    sum_ab += a[i] * b[i];
+    sum_a2 += a[i] * a[i];
+    sum_b2 += b[i] * b[i];
+  }
+  double denom = sqrt(sum_a2 * sum_b2) + 1e-9;
+  return (float)(sum_ab / denom);
+}
+
+// ----------------- Overall Similarity Computation -----------------
+
+// Combine multiple feature similarities into an overall similarity score.
+float overall_similarity(const float *input, const float *templ, int length) {
+  // Waveform correlation
+  float wave_corr = compute_waveform_correlation(input, templ, length);
+
+  // ZCR similarity: lower difference implies higher similarity.
+  float zcr_input = compute_zcr(input, length);
+  float zcr_templ = compute_zcr(templ, length);
+  float zcr_diff = fabs(zcr_input - zcr_templ);  // maximum possible diff is 1.0
+  float zcr_sim = 1.0f - zcr_diff;
+
+  // STE similarity: using relative difference.
+  float ste_input = compute_ste(input, length);
+  float ste_templ = compute_ste(templ, length);
+  float ste_diff = fabs(ste_input - ste_templ) / (ste_input + 1e-9f);
+  float ste_sim = 1.0f - ste_diff;
+  if (ste_sim < 0) ste_sim = 0;
+
+  // FFT correlation: compare the magnitude spectra.
+  float *mag_input = malloc(length * sizeof(float));
+  float *mag_templ = malloc(length * sizeof(float));
+  compute_dft(input, length, mag_input);
+  compute_dft(templ, length, mag_templ);
+  float fft_corr = compute_vector_correlation(mag_input, mag_templ, length);
+  free(mag_input);
+  free(mag_templ);
+
+  // Combine with weights (these weights can be tuned experimentally)
+  float overall =
+      0.4f * wave_corr + 0.2f * zcr_sim + 0.2f * ste_sim + 0.2f * fft_corr;
+  return overall;
+}
 
 int inputSignal[] = {
     1868288,    3802112,    3969024,    3365888,    2149120,    1037568,
@@ -7983,37 +8117,47 @@ int rightTemplate[] = {
 
 };
 
+// ----------------- Main Program -----------------
+
 int main(void) {
-  // Example audio signal arrays.
-  // In a real application, these arrays should be filled with your actual audio
-  // data. For demonstration, we use simple example values.
+  // Example: assume signals are of length 100.
+  int length = 16000;
 
-  // Input command signal array
-  
-  int inputSignalSize = sizeof(inputSignal) / sizeof(inputSignal[0]);
+  // Preprocess each signal.
+  remove_dc_bias(inputSignal, length);
+  remove_dc_bias(leftTemplate, length);
+  remove_dc_bias(rightTemplate, length);
 
-  int leftTemplateSize = sizeof(leftTemplate) / sizeof(leftTemplate[0]);
+  moving_average_filter(inputSignal, length, 3);
+  moving_average_filter(leftTemplate, length, 3);
+  moving_average_filter(rightTemplate, length, 3);
 
-  int rightTemplateSize = sizeof(rightTemplate) / sizeof(rightTemplate[0]);
+  bandpass_filter(inputSignal, length);
+  bandpass_filter(leftTemplate, length);
+  bandpass_filter(rightTemplate, length);
 
-  // Compute correlation values for both templates.
-  double left_corr = compute_correlation(inputSignal, inputSignalSize,
-                                         leftTemplate, leftTemplateSize);
-  double right_corr = compute_correlation(inputSignal, inputSignalSize,
-                                          rightTemplate, rightTemplateSize);
+  normalize_signal(inputSignal, length);
+  normalize_signal(leftTemplate, length);
+  normalize_signal(rightTemplate, length);
 
-  // Display the computed correlation values.
-  printf("Left correlation: %.3f\n", left_corr);
-  printf("Right correlation: %.3f\n", right_corr);
+  // Compute overall similarity with each template.
+  float sim_left = overall_similarity(inputSignal, leftTemplate, length);
+  float sim_right = overall_similarity(inputSignal, rightTemplate, length);
 
-  // Determine which command is recognized based on the correlation values.
-  if (left_corr < THRESHOLD && right_corr < THRESHOLD) {
-    printf("No valid command recognized (correlations below threshold).\n");
-  } else if (left_corr >= right_corr) {
+  printf("Overall similarity with LEFT template: %.3f\n", sim_left);
+  printf("Overall similarity with RIGHT template: %.3f\n", sim_right);
+
+  // Decide which command is recognized.
+  if (sim_left < THRESHOLD && sim_right < THRESHOLD) {
+    printf("No valid command recognized (similarities below threshold).\n");
+  } else if (sim_left >= sim_right) {
     printf("Recognized command: LEFT\n");
   } else {
     printf("Recognized command: RIGHT\n");
   }
 
+  free(inputSignal);
+  free(leftTemplate);
+  free(rightTemplate);
   return 0;
 }
