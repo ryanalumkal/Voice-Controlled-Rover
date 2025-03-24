@@ -1,8 +1,9 @@
+#include <float.h>
 #include <math.h>
 #include <stdio.h>
 #include <stdlib.h>
 
-#define THRESHOLD 0.7f  // Minimum overall similarity to accept a match
+#define THRESHOLD 1000.0f  // Maximum DTW distance to accept a match
 
 // ----------------- Preprocessing Functions -----------------
 
