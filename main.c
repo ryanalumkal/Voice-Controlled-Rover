@@ -166,7 +166,7 @@ float overall_similarity(const float *input, const float *templ, int length) {
   return overall;
 }
 
-int inputSignal[] = {
+int inputSignal_[] = {
     1868288,    3802112,    3969024,    3365888,    2149120,    1037568,
     -95488,     -1735168,   -2656512,   -2760704,   -2984960,   -1107712,
     -878848,    250880,     1732608,    1394944,    1095168,    367104,
@@ -2816,7 +2816,7 @@ int inputSignal[] = {
 
 };
 
-int leftTemplate[] = {
+int leftTemplate_[] = {
     -81799168,  -81799168,  -81961472,  -81970176,  -81236736,  -80860928,
     -80741120,  -80311296,  -80155904,  -81077248,  -80616192,  -80431360,
     -80367616,  -79999744,  -80560384,  -79356928,  -80279552,  -79726592,
@@ -5467,7 +5467,7 @@ int leftTemplate[] = {
 
 };
 
-int rightTemplate[] = {
+int rightTemplate_[] = {
     492032,     -484096,    539648,     -185600,    310016,     562944,
     583424,     275200,     -299264,    -365824,    -944384,    -308992,
     -628480,    -1303552,   -574208,    -517632,    -149248,    -236544,
@@ -8122,6 +8122,17 @@ int rightTemplate[] = {
 int main(void) {
   // Example: assume signals are of length 100.
   int length = 16000;
+
+  // Convert short arrays to float arrays for processing.
+  float *inputSignal = malloc(length * sizeof(float));
+  float *leftTemplate = malloc(length * sizeof(float));
+  float *rightTemplate = malloc(length * sizeof(float));
+
+  for (int i = 0; i < length; i++) {
+    inputSignal[i] = (float)inputSignal_[i];
+    leftTemplate[i] = (float)leftTemplate_[i];
+    rightTemplate[i] = (float)rightTemplate_[i];
+  }
 
   // Preprocess each signal.
   remove_dc_bias(inputSignal, length);
