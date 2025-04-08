@@ -8,8 +8,8 @@
       "args": [],
       "stopAtEntry": false,
       "externalConsole": true,
-      "cwd": "c:/ECE243/Project/DE1-SoC-Voice-Controlled-Rover",
-      "program": "c:/ECE243/Project/DE1-SoC-Voice-Controlled-Rover/build/Debug/outDebug",
+      "cwd": "c:/DE1-SoC-Voice-Controlled-Rover",
+      "program": "c:/DE1-SoC-Voice-Controlled-Rover/build/Debug/outDebug",
       "MIMode": "gdb",
       "miDebuggerPath": "gdb",
       "setupCommands": [
