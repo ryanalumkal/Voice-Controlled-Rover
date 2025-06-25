@@ -10,5 +10,3 @@ Upon compiling and loading the code onto the DE1-SoC board, command prompts will
 
 ![Block Diagram](Block_Diagram.jpg)
 
-## Rover
-![Rover](Rover.jpg)
